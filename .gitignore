@@ -1,0 +1,20 @@
+# Node
+frontend/node_modules/
+frontend/dist/
+frontend/.env*
+
+# Python
+backend/venv/
+backend/__pycache__/
+backend/*.pyc
+backend/.pytest_cache/
+
+# OS
+.DS_Store
+
+# IDE
+.vscode/
+.idea/
+
+# Storage / Data Toolkit
+storage/
