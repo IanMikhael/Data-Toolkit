@@ -25,14 +25,15 @@ export default function DataExplorer() {
   const [sortDesc, setSortDesc] = useState(false);
   const [headerRow, setHeaderRow] = useState('');
   
-  // Find & Replace States
   const [findCol, setFindCol] = useState('');
   const [findVal, setFindVal] = useState('');
   const [replaceVal, setReplaceVal] = useState('');
 
-  // Inline Editing States
   const [editingCell, setEditingCell] = useState<{row: number, col: string} | null>(null);
   const [editingValue, setEditingValue] = useState('');
+  
+  // STATE BARU: Untuk pencarian tabel instan
+  const [tableSearch, setTableSearch] = useState('');
 
   const fetchDatasets = async () => {
     setLoadingList(true);
@@ -111,13 +112,11 @@ export default function DataExplorer() {
     document.body.removeChild(link);
   };
 
-  // Trigger saat double-click sel
   const startEditing = (row: number, col: string, val: any) => {
     setEditingCell({ row, col });
     setEditingValue(val !== null ? String(val) : '');
   };
 
-  // Submit edit sel
   const handleUpdateCell = (row: number, col: string) => {
     if (editingCell) {
       applyCleaning('update_cell', { row_index: row, column: col, new_val: editingValue });
@@ -126,6 +125,15 @@ export default function DataExplorer() {
 
   const inputUI = "flex-1 min-w-0 bg-white border border-slate-300 text-slate-700 text-sm rounded-lg px-3 py-2.5 outline-none transition-all shadow-sm focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 hover:border-slate-400";
   const btnUI = "shrink-0 bg-blue-600 text-white px-5 rounded-lg text-sm font-semibold hover:bg-blue-700 disabled:opacity-50 transition shadow-sm hover:shadow active:scale-95";
+
+  // LOGIKA PENCARIAN TABEL INSTAN
+  const filteredTableData = result?.preview.filter((row: any) => {
+    if (!tableSearch) return true;
+    const searchLower = tableSearch.toLowerCase();
+    return Object.values(row).some(val => 
+      String(val).toLowerCase().includes(searchLower)
+    );
+  }) || [];
 
   if (result) {
     return (
@@ -163,8 +171,6 @@ export default function DataExplorer() {
           </div>
           
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
-            
-            {/* Find & Replace (Bulk) */}
             <div className="bg-amber-50/50 p-5 rounded-xl border border-amber-100 flex flex-col justify-between hover:border-amber-200 transition shadow-inner col-span-1 md:col-span-2 xl:col-span-1">
               <span className="text-xs font-bold text-amber-600 uppercase tracking-wide block mb-3 flex items-center gap-1"><Replace size={14}/> Cari & Ganti (Bulk)</span>
               <div className="flex flex-col gap-2">
@@ -179,7 +185,6 @@ export default function DataExplorer() {
               </div>
             </div>
 
-            {/* Jadikan Baris sbg Header */}
             <div className="bg-blue-50/50 p-5 rounded-xl border border-blue-100 flex flex-col justify-between hover:border-blue-200 transition">
               <span className="text-xs font-bold text-blue-700 uppercase tracking-wide block mb-3">Jadikan Baris sbg Header</span>
               <div className="flex gap-2">
@@ -188,7 +193,6 @@ export default function DataExplorer() {
               </div>
             </div>
 
-            {/* Ubah Nama Kolom */}
             <div className="bg-slate-50/50 p-5 rounded-xl border border-slate-100 flex flex-col justify-between hover:border-slate-200 transition">
               <span className="text-xs font-bold text-slate-600 uppercase tracking-wide block mb-3">Ubah Nama Kolom</span>
               <div className="flex flex-col gap-2">
@@ -202,7 +206,6 @@ export default function DataExplorer() {
               </div>
             </div>
             
-            {/* Ubah Tipe Data */}
             <div className="bg-slate-50/50 p-5 rounded-xl border border-slate-100 flex flex-col justify-between hover:border-slate-200 transition">
               <span className="text-xs font-bold text-slate-600 uppercase tracking-wide block mb-3">Ubah Tipe Data</span>
               <div className="flex flex-col gap-2">
@@ -218,7 +221,6 @@ export default function DataExplorer() {
               </div>
             </div>
 
-            {/* Filter */}
             <div className="bg-slate-50/50 p-5 rounded-xl border border-slate-100 flex flex-col justify-between hover:border-slate-200 transition">
               <span className="text-xs font-bold text-slate-600 uppercase tracking-wide block mb-3">Filter Data</span>
               <div className="flex flex-col gap-2">
@@ -232,7 +234,6 @@ export default function DataExplorer() {
               </div>
             </div>
 
-            {/* Urutkan */}
             <div className="bg-slate-50/50 p-5 rounded-xl border border-slate-100 flex flex-col justify-between hover:border-slate-200 transition">
               <span className="text-xs font-bold text-slate-600 uppercase tracking-wide block mb-3">Urutkan Data</span>
               <div className="flex flex-col sm:flex-row gap-2">
@@ -252,41 +253,62 @@ export default function DataExplorer() {
         </div>
 
         <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden relative">
-          <div className="bg-blue-50 px-6 py-3 border-b border-blue-100 flex items-center justify-between">
+          
+          {/* HEADER TABEL BARU: ADA SEARCH BAR */}
+          <div className="bg-blue-50 px-6 py-3 border-b border-blue-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <span className="text-xs font-bold text-blue-600">💡 TIPS: Klik ganda (Double-Click) pada sel tabel di bawah untuk mengedit data secara langsung.</span>
+            <div className="relative">
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 text-blue-400" size={14} />
+              <input 
+                type="text" 
+                placeholder="Cari cepat di tabel preview..." 
+                value={tableSearch}
+                onChange={(e) => setTableSearch(e.target.value)}
+                className="w-full sm:w-64 pl-8 pr-3 py-1.5 text-sm rounded-lg border border-blue-200 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 shadow-sm"
+              />
+            </div>
           </div>
+
           <div className="overflow-x-auto p-2">
             <table className="w-full text-sm text-left">
               <thead className="bg-slate-50 text-slate-600 font-medium">
                 <tr>{Object.entries(result.dtypes).map(([col, type]: any) => (<th key={col} className="px-5 py-4 border-b border-slate-200 min-w-[140px] whitespace-nowrap">{col} <span className="text-[10px] font-mono text-blue-500 bg-blue-50 px-2 py-0.5 rounded mt-1 inline-block">{type}</span></th>))}</tr>
               </thead>
               <tbody>
-                {result.preview.map((row: any, rowIndex: number) => (
-                  <tr key={rowIndex} className="border-b border-slate-100 hover:bg-blue-50/20 transition group">
-                    {Object.keys(result.dtypes).map((col) => (
-                      <td 
-                        key={col} 
-                        className={`px-5 py-2 text-slate-700 border-x border-transparent group-hover:border-slate-100 transition-colors ${editingCell?.row === rowIndex && editingCell?.col === col ? 'p-1' : 'cursor-text'}`}
-                        onDoubleClick={() => startEditing(rowIndex, col, row[col])}
-                      >
-                        {editingCell?.row === rowIndex && editingCell?.col === col ? (
-                          <input 
-                            autoFocus
-                            type="text" 
-                            value={editingValue}
-                            onChange={(e) => setEditingValue(e.target.value)}
-                            onBlur={() => handleUpdateCell(rowIndex, col)}
-                            onKeyDown={(e) => e.key === 'Enter' && handleUpdateCell(rowIndex, col)}
-                            className="w-full border-2 border-blue-500 rounded px-2 py-1.5 outline-none shadow-sm text-sm"
-                            disabled={isCleaning}
-                          />
-                        ) : (
-                          row[col] !== null ? String(row[col]) : <span className="text-slate-300 italic">null</span>
-                        )}
-                      </td>
-                    ))}
+                {filteredTableData.length > 0 ? (
+                  filteredTableData.map((row: any, rowIndex: number) => (
+                    <tr key={rowIndex} className="border-b border-slate-100 hover:bg-blue-50/20 transition group">
+                      {Object.keys(result.dtypes).map((col) => (
+                        <td 
+                          key={col} 
+                          className={`px-5 py-2 text-slate-700 border-x border-transparent group-hover:border-slate-100 transition-colors ${editingCell?.row === rowIndex && editingCell?.col === col ? 'p-1' : 'cursor-text'}`}
+                          onDoubleClick={() => startEditing(rowIndex, col, row[col])}
+                        >
+                          {editingCell?.row === rowIndex && editingCell?.col === col ? (
+                            <input 
+                              autoFocus
+                              type="text" 
+                              value={editingValue}
+                              onChange={(e) => setEditingValue(e.target.value)}
+                              onBlur={() => handleUpdateCell(rowIndex, col)}
+                              onKeyDown={(e) => e.key === 'Enter' && handleUpdateCell(rowIndex, col)}
+                              className="w-full border-2 border-blue-500 rounded px-2 py-1.5 outline-none shadow-sm text-sm"
+                              disabled={isCleaning}
+                            />
+                          ) : (
+                            row[col] !== null ? String(row[col]) : <span className="text-slate-300 italic">null</span>
+                          )}
+                        </td>
+                      ))}
+                    </tr>
+                  ))
+                ) : (
+                  <tr>
+                    <td colSpan={Object.keys(result.dtypes).length} className="px-5 py-8 text-center text-slate-400">
+                      Data tidak ditemukan untuk pencarian "{tableSearch}"
+                    </td>
                   </tr>
-                ))}
+                )}
               </tbody>
             </table>
           </div>
