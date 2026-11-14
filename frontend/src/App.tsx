@@ -2,6 +2,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import Layout from './components/Layout';
 import Home from './pages/Home';
 import DataExplorer from './pages/DataExplorer';
+import DatabaseConnector from './pages/DatabaseConnector';
 import Analysis from './pages/Analysis';
 import Visualization from './pages/Visualization';
 import Login from './pages/Login';
@@ -27,6 +28,7 @@ export default function App() {
         }>
           <Route index element={<Home />} />
           <Route path="data-explorer" element={<DataExplorer />} />
+          <Route path="databases" element={<DatabaseConnector />} />
           <Route path="analysis" element={<Analysis />} />
           <Route path="visualization" element={<Visualization />} />
           <Route path="*" element={

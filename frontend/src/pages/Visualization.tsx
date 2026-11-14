@@ -1,11 +1,53 @@
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import axios from 'axios';
 import ReactECharts from 'echarts-for-react';
-import { BarChart2, Settings2, Plus, AlertCircle, PieChart, LineChart, LayoutGrid, Type, Trash2, Loader2, Palette } from 'lucide-react';
+import { BarChart2, Settings2, Plus, PieChart, LineChart, LayoutGrid, Type, Trash2, Loader2, Palette } from 'lucide-react';
 import { useDataStore } from '../store/useDataStore';
 
 export default function Visualization() {
-  const { result } = useDataStore();
+  const { result, setResult } = useDataStore();
+  
+  // State Data Selector & Upload
+  const [datasets, setDatasets] = useState<any[]>([]);
+  const [uploading, setUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // 1. Tarik daftar file yang ada di sistem
+  useEffect(() => {
+    const fetchDatasets = async () => {
+      try {
+        const res = await axios.get('/api/datasets/');
+        setDatasets(res.data.data);
+      } catch (err) { console.error("Gagal memuat daftar dataset", err); }
+    };
+    fetchDatasets();
+  }, []);
+
+  // 2. Fungsi upload file baru langsung dari halaman visualisasi
+  const handleUpload = async (file: File) => {
+    setUploading(true);
+    const formData = new FormData();
+    formData.append('file', file);
+    try {
+      const response = await axios.post('/api/datasets/import', formData);
+      setResult(response.data.data); // Jadikan data yang baru di-upload sbg data aktif
+      
+      // Refresh daftar dropdown
+      const res = await axios.get('/api/datasets/');
+      setDatasets(res.data.data);
+    } catch (err) { alert("Gagal mengunggah file"); } 
+    finally { setUploading(false); }
+  };
+
+  // 3. Fungsi saat user memilih data dari dropdown
+  const handleSelectDataset = async (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const id = e.target.value;
+    if (!id) { setResult(null); return; }
+    try {
+      const res = await axios.get(`/api/datasets/${id}/load`);
+      setResult(res.data.data);
+    } catch (err) { alert("Gagal memuat dataset"); }
+  };
   
   // Dashboard State (Menyimpan banyak widget)
   const [widgets, setWidgets] = useState<any[]>([]);
@@ -28,17 +70,7 @@ export default function Visualization() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  if (!result) {
-    return (
-      <div className="flex flex-col items-center justify-center h-[60vh] bg-white rounded-2xl shadow-sm border border-slate-100 text-slate-500">
-         <AlertCircle size={64} className="mb-4 text-slate-300" />
-         <h2 className="text-xl font-bold text-slate-700 mb-2">Belum Ada Dataset</h2>
-         <p>Silakan upload dataset di menu <b>Data Explorer</b> terlebih dahulu.</p>
-      </div>
-    );
-  }
-
-  const columns = Object.keys(result.dtypes);
+  const columns = result ? Object.keys(result.dtypes) : [];
 
   const themeColors: Record<string, string[]> = {
     blue: ['#3b82f6', '#60a5fa', '#93c5fd', '#bfdbfe'],
@@ -49,6 +81,7 @@ export default function Visualization() {
   };
 
   const handleAddWidget = async () => {
+    if (!result) { setError("Pilih dataset terlebih dahulu."); return; }
     if (widgetMode === 'text') {
       if (!textContent) { setError("Isi teks terlebih dahulu."); return; }
       setWidgets([...widgets, { id: Date.now(), type: 'text', title: widgetTitle, content: textContent }]);
@@ -133,129 +166,165 @@ export default function Visualization() {
 
   return (
     <div className="max-w-7xl mx-auto space-y-6 pb-12">
-      <div className="flex items-center justify-between mb-8">
-        <div className="flex items-center gap-3">
-          <div className="bg-blue-100 p-3 rounded-xl text-blue-600"><LayoutGrid size={28} /></div>
-          <div>
-            <h2 className="text-2xl font-bold text-slate-800">Dashboard Builder</h2>
-            <p className="text-slate-500">Rakit dashboard multi-panel Anda sendiri.</p>
-          </div>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 xl:grid-cols-4 gap-6">
-        {/* PANEL KIRI: WIDGET BUILDER */}
-        <div className="xl:col-span-1 bg-white p-5 rounded-2xl shadow-sm border border-slate-100 space-y-5 h-max sticky top-6">
-          <h3 className="font-bold text-slate-800 flex items-center gap-2 border-b pb-3">
-            <Settings2 size={18} className="text-blue-500" /> Buat Widget Baru
-          </h3>
-          
-          <div className="flex bg-slate-100 p-1 rounded-lg">
-            <button onClick={() => setWidgetMode('chart')} className={`flex-1 py-1.5 text-sm font-medium rounded-md flex items-center justify-center gap-2 transition ${widgetMode === 'chart' ? 'bg-white shadow-sm text-blue-600' : 'text-slate-500 hover:text-slate-700'}`}><BarChart2 size={16}/> Grafik</button>
-            <button onClick={() => setWidgetMode('text')} className={`flex-1 py-1.5 text-sm font-medium rounded-md flex items-center justify-center gap-2 transition ${widgetMode === 'text' ? 'bg-white shadow-sm text-blue-600' : 'text-slate-500 hover:text-slate-700'}`}><Type size={16}/> Teks/Judul</button>
+       
+       {/* HEADER: DATA SOURCE SELECTOR & UPLOAD */}
+       <div className="bg-white p-5 rounded-3xl shadow-sm border border-slate-200 flex flex-wrap gap-4 items-center justify-between">
+          <div className="flex items-center gap-3">
+             <div className="bg-purple-100 p-3 rounded-xl text-purple-600">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 3v18h18"/><path d="M18 17V9"/><path d="M13 17V5"/><path d="M8 17v-3"/></svg>
+             </div>
+             <div>
+               <h2 className="text-xl font-bold text-slate-800">Visualisasi & Dashboard</h2>
+               <p className="text-sm text-slate-500">Pilih data dari sistem atau upload file baru.</p>
+             </div>
           </div>
 
-          <div className="space-y-4">
-            <div>
-              <label className="text-xs font-bold text-slate-500 uppercase mb-2 block">Judul Widget (Opsional)</label>
-              <input type="text" value={widgetTitle} onChange={(e) => setWidgetTitle(e.target.value)} placeholder="Contoh: Pendapatan Cabang" className="w-full bg-slate-50 border border-slate-200 text-sm rounded-lg px-3 py-2 outline-none focus:border-blue-500" />
-            </div>
+          <div className="flex items-center gap-3">
+             <select
+               value={result?.id || ''}
+               onChange={handleSelectDataset}
+               className="bg-slate-50 border border-slate-200 text-slate-700 text-sm rounded-xl px-4 py-2.5 outline-none focus:border-purple-500 focus:ring-4 focus:ring-purple-500/10 transition min-w-[220px]"
+             >
+               <option value="">-- Pilih Dataset Tersimpan --</option>
+               {datasets.map(d => (
+                 <option key={d.id} value={d.id}>{d.filename || d.name || `Dataset #${d.id}`}</option>
+               ))}
+             </select>
 
-            {widgetMode === 'text' ? (
-              <div>
-                <label className="text-xs font-bold text-slate-500 uppercase mb-2 block">Isi Teks</label>
-                <textarea value={textContent} onChange={(e) => setTextContent(e.target.value)} placeholder="Ketik teks penjelasan atau catatan dashboard di sini..." rows={4} className="w-full bg-slate-50 border border-slate-200 text-sm rounded-lg px-3 py-2 outline-none focus:border-blue-500 resize-none" />
-              </div>
-            ) : (
-              <>
-                <div>
-                  <label className="text-xs font-bold text-slate-500 uppercase mb-2 block">Tipe Grafik</label>
-                  <div className="grid grid-cols-4 gap-2">
-                    {[{ id: 'bar', icon: BarChart2 }, { id: 'line', icon: LineChart }, { id: 'pie', icon: PieChart }, { id: 'scatter', icon: LayoutGrid }].map(type => (
-                      <button key={type.id} onClick={() => setChartType(type.id)} className={`p-2 flex justify-center rounded-lg border transition ${chartType === type.id ? 'bg-blue-50 border-blue-500 text-blue-600' : 'bg-white border-slate-200 text-slate-400 hover:bg-slate-50'}`}><type.icon size={20} /></button>
-                    ))}
-                  </div>
-                </div>
-                <div>
-                  <label className="text-xs font-bold text-slate-500 uppercase mb-2 block">Sumbu X (Kategori)</label>
-                  <select value={xAxis} onChange={(e) => setXAxis(e.target.value)} className="w-full bg-slate-50 border border-slate-200 text-sm rounded-lg px-3 py-2 outline-none focus:border-blue-500">
-                    <option value="">-- Pilih Kolom --</option>{columns.map(col => <option key={col} value={col}>{col}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label className="text-xs font-bold text-slate-500 uppercase mb-2 block">Sumbu Y (Metrik)</label>
-                  <select value={yAxis} onChange={(e) => setYAxis(e.target.value)} className="w-full bg-slate-50 border border-slate-200 text-sm rounded-lg px-3 py-2 outline-none focus:border-blue-500">
-                    <option value="">-- Pilih Kolom --</option>{columns.map(col => <option key={col} value={col}>{col}</option>)}
-                  </select>
-                </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="text-xs font-bold text-slate-500 uppercase mb-2 block">Agregasi</label>
-                    <select value={aggFunc} onChange={(e) => setAggFunc(e.target.value)} className="w-full bg-slate-50 border border-slate-200 text-sm rounded-lg px-3 py-2 outline-none focus:border-blue-500">
-                      <option value="sum">SUM</option><option value="avg">AVG</option><option value="count">COUNT</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="text-xs font-bold text-slate-500 uppercase mb-2 block">Warna</label>
-                    <select value={colorTheme} onChange={(e) => setColorTheme(e.target.value)} className="w-full bg-slate-50 border border-slate-200 text-sm rounded-lg px-3 py-2 outline-none focus:border-blue-500 capitalize">
-                      {Object.keys(themeColors).map(color => <option key={color} value={color}>{color}</option>)}
-                    </select>
-                  </div>
-                </div>
-              </>
-            )}
+             <span className="text-slate-300 text-sm font-medium">atau</span>
 
-            {error && <div className="text-xs text-red-500 bg-red-50 p-2 rounded border border-red-100">{error}</div>}
-
-            <button onClick={handleAddWidget} disabled={loading} className="w-full mt-2 bg-blue-600 hover:bg-blue-700 text-white py-2.5 rounded-lg text-sm font-medium transition flex items-center justify-center gap-2">
-              {loading ? <Loader2 className="animate-spin" size={16} /> : <Plus size={16} />} Add to Dashboard
-            </button>
+             <input type="file" accept=".csv,.xlsx,.xls,.json,.parquet" className="hidden" ref={fileInputRef} onChange={(e) => e.target.files?.[0] && handleUpload(e.target.files[0])} />
+             <button
+               onClick={() => fileInputRef.current?.click()}
+               disabled={uploading}
+               className="bg-purple-600 hover:bg-purple-700 text-white px-5 py-2.5 rounded-xl text-sm font-bold transition flex items-center gap-2 shadow-sm disabled:opacity-50"
+             >
+               {uploading ? "Mengunggah..." : "+ Upload Baru"}
+             </button>
           </div>
-        </div>
+       </div>
 
-        {/* PANEL KANAN: DASHBOARD CANVAS */}
-        <div className="xl:col-span-3">
-          {widgets.length === 0 ? (
-            <div className="h-full min-h-[500px] border-2 border-dashed border-slate-200 rounded-2xl flex flex-col items-center justify-center text-slate-400 bg-slate-50/50">
-              <LayoutGrid size={48} className="mb-4 text-slate-300" />
-              <p className="text-lg font-medium text-slate-500">Dashboard Anda Masih Kosong</p>
-              <p className="text-sm">Rakit grafik atau teks di panel kiri lalu klik "Add to Dashboard".</p>
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
-              {widgets.map((widget) => (
-                <div key={widget.id} className={`bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden flex flex-col ${widget.type === 'text' ? 'md:col-span-2' : 'col-span-1'}`}>
-                  
-                  <div className="px-5 py-3 border-b border-slate-50 flex justify-between items-center bg-slate-50/50">
-                    <h4 className="font-bold text-slate-700 flex items-center gap-2">
-                      {widget.type === 'text' ? <Type size={16} className="text-slate-400"/> : <Palette size={16} style={{color: themeColors[widget.colorTheme]?.[0]}} />}
-                      {widget.title}
-                    </h4>
-                    <button onClick={() => removeWidget(widget.id)} className="text-slate-400 hover:text-red-500 hover:bg-red-50 p-1.5 rounded-md transition">
-                      <Trash2 size={16} />
-                    </button>
-                  </div>
-                  
-                  <div className="p-5">
-                    {widget.type === 'text' ? (
-                      <div className="text-slate-600 whitespace-pre-wrap">{widget.content}</div>
-                    ) : (
-                      <div className="w-full h-[300px]">
-                        <ReactECharts 
-                          option={getChartOptions(widget)} 
-                          style={{ height: '100%', width: '100%' }}
-                          notMerge={true} lazyUpdate={true}
-                        />
-                      </div>
-                    )}
-                  </div>
-                  
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      </div>
+       {/* AREA WORKSPACE ECHARTS */}
+       {!result ? (
+         <div className="flex flex-col items-center justify-center h-[50vh] bg-slate-50/50 rounded-3xl border-2 border-dashed border-slate-200 text-slate-400">
+            <p>Pilih atau upload dataset di atas untuk mulai merakit Dashboard.</p>
+         </div>
+       ) : (
+         <div className="animate-in fade-in slide-in-from-bottom-4 grid grid-cols-1 xl:grid-cols-4 gap-6">
+           {/* PANEL KIRI: WIDGET BUILDER */}
+           <div className="xl:col-span-1 bg-white p-5 rounded-2xl shadow-sm border border-slate-100 space-y-5 h-max sticky top-6">
+             <h3 className="font-bold text-slate-800 flex items-center gap-2 border-b pb-3">
+               <Settings2 size={18} className="text-purple-500" /> Buat Widget Baru
+             </h3>
+             
+             <div className="flex bg-slate-100 p-1 rounded-lg">
+               <button onClick={() => setWidgetMode('chart')} className={`flex-1 py-1.5 text-sm font-medium rounded-md flex items-center justify-center gap-2 transition ${widgetMode === 'chart' ? 'bg-white shadow-sm text-purple-600' : 'text-slate-500 hover:text-slate-700'}`}><BarChart2 size={16}/> Grafik</button>
+               <button onClick={() => setWidgetMode('text')} className={`flex-1 py-1.5 text-sm font-medium rounded-md flex items-center justify-center gap-2 transition ${widgetMode === 'text' ? 'bg-white shadow-sm text-purple-600' : 'text-slate-500 hover:text-slate-700'}`}><Type size={16}/> Teks/Judul</button>
+             </div>
+
+             <div className="space-y-4">
+               <div>
+                 <label className="text-xs font-bold text-slate-500 uppercase mb-2 block">Judul Widget (Opsional)</label>
+                 <input type="text" value={widgetTitle} onChange={(e) => setWidgetTitle(e.target.value)} placeholder="Contoh: Pendapatan Cabang" className="w-full bg-slate-50 border border-slate-200 text-sm rounded-lg px-3 py-2 outline-none focus:border-purple-500" />
+               </div>
+
+               {widgetMode === 'text' ? (
+                 <div>
+                   <label className="text-xs font-bold text-slate-500 uppercase mb-2 block">Isi Teks</label>
+                   <textarea value={textContent} onChange={(e) => setTextContent(e.target.value)} placeholder="Ketik teks penjelasan atau catatan dashboard di sini..." rows={4} className="w-full bg-slate-50 border border-slate-200 text-sm rounded-lg px-3 py-2 outline-none focus:border-purple-500 resize-none" />
+                 </div>
+               ) : (
+                 <>
+                   <div>
+                     <label className="text-xs font-bold text-slate-500 uppercase mb-2 block">Tipe Grafik</label>
+                     <div className="grid grid-cols-4 gap-2">
+                       {[{ id: 'bar', icon: BarChart2 }, { id: 'line', icon: LineChart }, { id: 'pie', icon: PieChart }, { id: 'scatter', icon: LayoutGrid }].map(type => (
+                         <button key={type.id} onClick={() => setChartType(type.id)} className={`p-2 flex justify-center rounded-lg border transition ${chartType === type.id ? 'bg-purple-50 border-purple-500 text-purple-600' : 'bg-white border-slate-200 text-slate-400 hover:bg-slate-50'}`}><type.icon size={20} /></button>
+                       ))}
+                     </div>
+                   </div>
+                   <div>
+                     <label className="text-xs font-bold text-slate-500 uppercase mb-2 block">Sumbu X (Kategori)</label>
+                     <select value={xAxis} onChange={(e) => setXAxis(e.target.value)} className="w-full bg-slate-50 border border-slate-200 text-sm rounded-lg px-3 py-2 outline-none focus:border-purple-500">
+                       <option value="">-- Pilih Kolom --</option>{columns.map(col => <option key={col} value={col}>{col}</option>)}
+                     </select>
+                   </div>
+                   <div>
+                     <label className="text-xs font-bold text-slate-500 uppercase mb-2 block">Sumbu Y (Metrik)</label>
+                     <select value={yAxis} onChange={(e) => setYAxis(e.target.value)} className="w-full bg-slate-50 border border-slate-200 text-sm rounded-lg px-3 py-2 outline-none focus:border-purple-500">
+                       <option value="">-- Pilih Kolom --</option>{columns.map(col => <option key={col} value={col}>{col}</option>)}
+                     </select>
+                   </div>
+                   <div className="grid grid-cols-2 gap-3">
+                     <div>
+                       <label className="text-xs font-bold text-slate-500 uppercase mb-2 block">Agregasi</label>
+                       <select value={aggFunc} onChange={(e) => setAggFunc(e.target.value)} className="w-full bg-slate-50 border border-slate-200 text-sm rounded-lg px-3 py-2 outline-none focus:border-purple-500">
+                         <option value="sum">SUM</option><option value="avg">AVG</option><option value="count">COUNT</option>
+                       </select>
+                     </div>
+                     <div>
+                       <label className="text-xs font-bold text-slate-500 uppercase mb-2 block">Warna</label>
+                       <select value={colorTheme} onChange={(e) => setColorTheme(e.target.value)} className="w-full bg-slate-50 border border-slate-200 text-sm rounded-lg px-3 py-2 outline-none focus:border-purple-500 capitalize">
+                         {Object.keys(themeColors).map(color => <option key={color} value={color}>{color}</option>)}
+                       </select>
+                     </div>
+                   </div>
+                 </>
+               )}
+
+               {error && <div className="text-xs text-red-500 bg-red-50 p-2 rounded border border-red-100">{error}</div>}
+
+               <button onClick={handleAddWidget} disabled={loading} className="w-full mt-2 bg-purple-600 hover:bg-purple-700 text-white py-2.5 rounded-lg text-sm font-medium transition flex items-center justify-center gap-2">
+                 {loading ? <Loader2 className="animate-spin" size={16} /> : <Plus size={16} />} Add to Dashboard
+               </button>
+             </div>
+           </div>
+
+           {/* PANEL KANAN: DASHBOARD CANVAS */}
+           <div className="xl:col-span-3">
+             {widgets.length === 0 ? (
+               <div className="h-full min-h-[500px] border-2 border-dashed border-slate-200 rounded-2xl flex flex-col items-center justify-center text-slate-400 bg-slate-50/50">
+                 <LayoutGrid size={48} className="mb-4 text-slate-300" />
+                 <p className="text-lg font-medium text-slate-500">Dashboard Anda Masih Kosong</p>
+                 <p className="text-sm">Rakit grafik atau teks di panel kiri lalu klik "Add to Dashboard".</p>
+               </div>
+             ) : (
+               <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
+                 {widgets.map((widget) => (
+                   <div key={widget.id} className={`bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden flex flex-col ${widget.type === 'text' ? 'md:col-span-2' : 'col-span-1'}`}>
+                     
+                     <div className="px-5 py-3 border-b border-slate-50 flex justify-between items-center bg-slate-50/50">
+                       <h4 className="font-bold text-slate-700 flex items-center gap-2">
+                         {widget.type === 'text' ? <Type size={16} className="text-slate-400"/> : <Palette size={16} style={{color: themeColors[widget.colorTheme]?.[0]}} />}
+                         {widget.title}
+                       </h4>
+                       <button onClick={() => removeWidget(widget.id)} className="text-slate-400 hover:text-red-500 hover:bg-red-50 p-1.5 rounded-md transition">
+                         <Trash2 size={16} />
+                       </button>
+                     </div>
+                     
+                     <div className="p-5">
+                       {widget.type === 'text' ? (
+                         <div className="text-slate-600 whitespace-pre-wrap">{widget.content}</div>
+                       ) : (
+                         <div className="w-full h-[300px]">
+                           <ReactECharts 
+                             option={getChartOptions(widget)} 
+                             style={{ height: '100%', width: '100%' }}
+                             notMerge={true} lazyUpdate={true}
+                           />
+                         </div>
+                       )}
+                     </div>
+                     
+                   </div>
+                 ))}
+               </div>
+             )}
+           </div>
+         </div>
+       )}
+
     </div>
   );
 }

@@ -1,6 +1,9 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.api.routes import datasets, cleaning, sql, analysis
+from app.api.routes import datasets, cleaning, sql, analysis, db_connector
+from app.database import init_db
+
+init_db()
 
 app = FastAPI(title="Data Toolkit API", version="1.0.0")
 
@@ -16,6 +19,7 @@ app.include_router(datasets.router, prefix="/api/datasets", tags=["Datasets"])
 app.include_router(cleaning.router, prefix="/api/cleaning", tags=["Cleaning"])
 app.include_router(sql.router, prefix="/api/sql", tags=["SQL Workspace"])
 app.include_router(analysis.router, prefix="/api/analysis", tags=["Analysis & Aggregation"])
+app.include_router(db_connector.router, prefix="/api/db", tags=["Database Connector"])
 
 @app.get("/api/health")
 def health_check():
